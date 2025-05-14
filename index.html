@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ShoeSKARTEL Product Uploader</title>
+  <title>DRAFT</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
   <style>
     * { box-sizing: border-box; font-family: 'Inter', sans-serif; }
@@ -96,7 +96,7 @@
 </head>
 <body>
   <div class="container">
-    <h1>draft</h1>
+    <h1>sk prdct upld</h1>
 
     <form id="product-form">
       <div class="form-group">
@@ -151,10 +151,10 @@
   <div id="confirmation-dialog" class="confirmation-dialog" style="display: none;">
     <div class="confirmation-content">
       <h3>Confirm Product Upload</h3>
-      <p>Are you sure you want to save this product as a draft?</p>
+      <p>Are you sure you want to publish this product to the store?</p>
       <div class="confirmation-buttons">
         <button onclick="document.getElementById('confirmation-dialog').style.display = 'none'">Cancel</button>
-        <button onclick="confirmUpload()" class="btn-danger">Yes, Save as Draft</button>
+        <button onclick="confirmUpload()" class="btn-danger">Yes, Publish Now</button>
       </div>
     </div>
   </div>
@@ -205,76 +205,285 @@
         // Add your specific categories
         const categorySlugs = [
           'belt-and-wallets', 'cod-products', 'crocs', 'duffle-bagpacks',
-          'electronics', 'formal-jackets-hoodies', 'first-copy-lifestyle'
+          'electronics', 'formal-jackets-hoodies', 'first-copy-ladies-bag',
+          'turkey-perfumes', 'plain-shirts', 'shoes', 'slides', 'sunglasses',
+          'first-copy-mens-shoes-first-copy-womens-shoes', 'watches-for-her',
+          'watches-for-him', 'ladies-shoes'
         ];
         
-        categories.forEach(category => {
-          if (categorySlugs.includes(category.slug)) {
-            categorySelect.appendChild(new Option(category.name, category.id));
+        // Add categories that exist in WooCommerce
+        categorySlugs.forEach(slug => {
+          const foundCategory = data.find(cat => cat.slug === slug);
+          if (foundCategory) {
+            categorySelect.appendChild(new Option(foundCategory.name, foundCategory.id));
           }
         });
+        
+        categorySelect.disabled = false;
       } catch (error) {
-        console.error(error);
+        console.error('Error loading categories:', error);
+        categorySelect.innerHTML = '';
+        categorySelect.appendChild(new Option('Error loading categories', ''));
       } finally {
         loadingIndicator.style.display = 'none';
       }
     }
 
     // Handle image upload and preview
-    function handleImageUpload(event) {
-      const files = event.target.files;
-      const previewContainer = document.getElementById('preview');
-      previewContainer.innerHTML = ''; // Clear previous previews
-
-      for (let file of files) {
+    function handleImageUpload(e) {
+      const preview = document.getElementById('preview');
+      preview.innerHTML = '';
+      uploadedImages = [];
+      
+      if (this.files.length === 0) {
+        document.getElementById('images-error').textContent = 'Please upload at least one image';
+        return;
+      } else {
+        document.getElementById('images-error').textContent = '';
+      }
+      
+      Array.from(this.files).forEach((file, index) => {
+        // Validate image type
+        if (!file.type.match('image.*')) {
+          document.getElementById('images-error').textContent = 'Only image files are allowed';
+          return;
+        }
+        
         const reader = new FileReader();
         reader.onload = function(e) {
-          const imgElement = document.createElement('img');
-          imgElement.src = e.target.result;
           const previewItem = document.createElement('div');
-          previewItem.classList.add('image-preview-item');
-          previewItem.innerHTML = `
-            <img src="${e.target.result}" alt="Preview" />
-            <button class="remove-image" onclick="removeImage(this)">×</button>
-          `;
-          previewContainer.appendChild(previewItem);
+          previewItem.className = 'image-preview-item';
+          
+          const img = document.createElement('img');
+          img.src = e.target.result;
+          
+          const removeBtn = document.createElement('button');
+          removeBtn.className = 'remove-image';
+          removeBtn.innerHTML = '×';
+          removeBtn.onclick = () => removeImage(index);
+          
+          previewItem.appendChild(img);
+          previewItem.appendChild(removeBtn);
+          preview.appendChild(previewItem);
+          
           uploadedImages.push(file);
-        };
+        }
         reader.readAsDataURL(file);
-      }
+      });
     }
 
-    // Remove selected image preview
-    function removeImage(button) {
-      const previewContainer = document.getElementById('preview');
-      const index = Array.from(previewContainer.children).indexOf(button.parentElement);
-      uploadedImages.splice(index, 1);  // Remove from uploaded images array
-      previewContainer.removeChild(button.parentElement);
+    // Remove image from preview and file list
+    function removeImage(index) {
+      uploadedImages.splice(index, 1);
+      const fileInput = document.getElementById('images');
+      
+      // Create new DataTransfer to update files
+      const dataTransfer = new DataTransfer();
+      uploadedImages.forEach(file => dataTransfer.items.add(file));
+      fileInput.files = dataTransfer.files;
+      
+      // Trigger change event to update preview
+      const event = new Event('change');
+      fileInput.dispatchEvent(event);
     }
 
-    // Validate inputs before showing confirmation dialog
-    function validateAndConfirm() {
+    // Validate form fields
+    function validateForm() {
+      let isValid = true;
       const title = document.getElementById('title').value.trim();
       const price = document.getElementById('price').value.trim();
-      const desc = document.getElementById('desc').value.trim();
-      const category = document.getElementById('category').value.trim();
       const sale = document.getElementById('sale').value.trim();
-
-      if (!title || !price || !desc || !category || uploadedImages.length === 0) {
-        alert('Please fill in all required fields and upload images.');
-        return;
+      const desc = document.getElementById('desc').value.trim();
+      const category = document.getElementById('category').value;
+      const files = document.getElementById('images').files;
+      
+      // Reset errors
+      document.querySelectorAll('.error').forEach(el => el.textContent = '');
+      
+      // Validate title
+      if (!title) {
+        document.getElementById('title-error').textContent = 'Title is required';
+        isValid = false;
       }
-
-      // Show confirmation dialog
-      document.getElementById('confirmation-dialog').style.display = 'flex';
+      
+      // Validate price
+      if (!price) {
+        document.getElementById('price-error').textContent = 'MRP is required';
+        isValid = false;
+      } else if (isNaN(price) || parseFloat(price) <= 0) {
+        document.getElementById('price-error').textContent = 'MRP must be a valid number greater than 0';
+        isValid = false;
+      }
+      
+      // Validate sale price
+      if (sale && (isNaN(sale) || parseFloat(sale) < 0)) {
+        document.getElementById('sale-error').textContent = 'Discount price must be a valid number (0 or greater)';
+        isValid = false;
+      }
+      
+      // Validate description
+      if (!desc) {
+        document.getElementById('desc-error').textContent = 'Description is required';
+        isValid = false;
+      }
+      
+      // Validate category
+      if (!category) {
+        document.getElementById('category-error').textContent = 'Category is required';
+        isValid = false;
+      }
+      
+      // Validate images
+      if (files.length === 0) {
+        document.getElementById('images-error').textContent = 'At least one image is required';
+        isValid = false;
+      }
+      
+      return isValid;
     }
 
-    // Confirm upload to WooCommerce (save as draft)
-    function confirmUpload() {
-      // Here you can integrate WooCommerce API call to save the product as draft
-      alert('Product will be saved as a draft.');
+    // Validate and show confirmation dialog
+    function validateAndConfirm() {
+      if (validateForm()) {
+        document.getElementById('confirmation-dialog').style.display = 'flex';
+      }
+    }
 
+    // Confirmed upload
+    function confirmUpload() {
       document.getElementById('confirmation-dialog').style.display = 'none';
+      addProduct();
+    }
+
+    // Show/hide loading state
+    function showLoading(show) {
+      const btnText = document.getElementById('btn-text');
+      const btnLoader = document.getElementById('btn-loader');
+      const uploadBtn = document.getElementById('upload-btn');
+      
+      if (show) {
+        btnText.style.display = 'none';
+        btnLoader.style.display = 'inline';
+        uploadBtn.disabled = true;
+      } else {
+        btnText.style.display = 'inline';
+        btnLoader.style.display = 'none';
+        uploadBtn.disabled = false;
+      }
+    }
+
+    // Upload images to Cloudinary
+    async function uploadImages(files) {
+      const status = document.getElementById("upload-status");
+      status.textContent = "Uploading images...";
+      const urls = [];
+      
+      try {
+        for (const file of files) {
+          const formData = new FormData();
+          formData.append("file", file);
+          formData.append("upload_preset", uploadPreset);
+
+          const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+            method: "POST",
+            body: formData,
+          });
+          
+          if (!res.ok) {
+            throw new Error(`Image upload failed: ${res.statusText}`);
+          }
+          
+          const data = await res.json();
+          urls.push(data.secure_url);
+        }
+        
+        status.textContent = `Successfully uploaded ${urls.length} image(s) to Cloudinary.`;
+        return urls;
+      } catch (error) {
+        status.textContent = `Image upload error: ${error.message}`;
+        status.className = 'status error-message';
+        throw error;
+      }
+    }
+
+    // Add product to WooCommerce
+    async function addProduct() {
+      showLoading(true);
+      
+      const title = document.getElementById("title").value.trim();
+      const price = document.getElementById("price").value.trim();
+      let sale = document.getElementById("sale").value.trim();
+      const desc = document.getElementById("desc").value.trim();
+      const categoryId = document.getElementById("category").value;
+      const files = document.getElementById("images").files;
+      const status = document.getElementById("status");
+
+      if (!sale) sale = price;
+
+      try {
+        status.textContent = "Uploading images to Cloudinary...";
+        status.className = 'status';
+        const imageUrls = await uploadImages(files);
+
+        // Find the full category object
+        const category = categories.find(cat => cat.id == categoryId);
+        
+        if (!category) {
+          throw new Error('Selected category not found');
+        }
+
+        const productData = {
+          name: title,
+          type: "simple",
+          regular_price: price,
+          sale_price: sale,
+          short_description: desc,
+          categories: [{ id: categoryId }], // Using ID instead of slug
+          images: imageUrls.map((url, i) => ({ src: url, position: i })),
+          status: "draft"
+        };
+
+        status.textContent = "Uploading product to WooCommerce...";
+        const res = await fetch(`${site}products?consumer_key=${ck}&consumer_secret=${cs}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(productData),
+        });
+
+        if (!res.ok) {
+          const errorData = await res.json();
+          console.error('API Error:', errorData);
+          throw new Error(errorData.message || 'Failed to create product');
+        }
+
+        const result = await res.json();
+        console.log('Product created:', result); // Debug log
+        
+        // Verify category was assigned
+        if (result.categories && result.categories.length > 0) {
+          status.innerHTML = `<span class="success">Product <b>${result.name}</b> added to ${category.name} successfully!</span>`;
+        } else {
+          status.innerHTML = `<span class="error-message">Product created but category assignment failed</span>`;
+        }
+        
+        // Reset form
+        resetForm();
+      } catch (error) {
+        status.innerHTML = `<span class="error-message">Error: ${error.message}</span>`;
+        console.error('Upload error:', error);
+      } finally {
+        showLoading(false);
+      }
+    }
+
+    // Reset form after successful submission
+    function resetForm() {
+      document.getElementById("product-form").reset();
+      document.getElementById('preview').innerHTML = '';
+      uploadedImages = [];
+      document.getElementById("images").value = '';
+      document.getElementById('upload-status').textContent = '';
+      document.getElementById('upload-status').className = 'status';
     }
   </script>
 </body>

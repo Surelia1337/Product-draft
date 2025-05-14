@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ShoeSKARTEL Product Uploader</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; font-family: 'Inter', sans-serif; }
+    body { background: #f2f3f8; padding: 20px; }
+    .container { max-width: 800px; margin: auto; background: white; padding: 25px; border-radius: 16px; box-shadow: 0 6px 18px rgba(0,0,0,0.1); }
+    h1 { text-align: center; margin-bottom: 20px; font-size: 24px; }
+    label { font-weight: 600; margin-top: 10px; display: block; }
+    input, textarea, select, button { width: 100%; margin-top: 5px; padding: 12px; border-radius: 8px; border: 1px solid #ccc; font-size: 15px; }
+    button { background: #0073aa; color: white; cursor: pointer; border: none; transition: background 0.3s; }
+    button:hover { background: #005f8d; }
+    button:disabled { background: #cccccc; cursor: not-allowed; }
+    .btn-danger { background: #dc3545; }
+    .btn-danger:hover { background: #bb2d3b; }
+    .form-group { margin-bottom: 15px; }
+    .image-preview { display: flex; flex-wrap: wrap; gap: 15px; margin-top: 15px; }
+    .image-preview-item { position: relative; }
+    .image-preview img { width: 100px; height: 100px; object-fit: cover; border-radius: 6px; border: 2px solid #ccc; }
+    .remove-image { 
+      position: absolute; 
+      top: -8px; 
+      right: -8px; 
+      background: #dc3545; 
+      color: white; 
+      border: none; 
+      border-radius: 50%; 
+      width: 24px; 
+      height: 24px; 
+      font-size: 12px; 
+      cursor: pointer; 
+      display: flex; 
+      align-items: center; 
+      justify-content: center;
+    }
+    .status, .product-list { margin-top: 15px; font-size: 14px; color: #444; }
+    .product-item { padding: 10px; border-bottom: 1px solid #ddd; }
+    .error { color: #dc3545; font-size: 13px; margin-top: 3px; }
+    .loading { 
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 3px solid rgba(255,255,255,.3);
+      border-radius: 50%;
+      border-top-color: #fff;
+      animation: spin 1s ease-in-out infinite;
+      margin-right: 8px;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .confirmation-dialog {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    .confirmation-content {
+      background: white;
+      padding: 25px;
+      border-radius: 10px;
+      max-width: 500px;
+      width: 90%;
+    }
+    .confirmation-buttons {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+    }
+    .confirmation-buttons button {
+      flex: 1;
+    }
+    .success { color: #28a745; }
+    .error-message { color: #dc3545; }
+    .category-loading {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(0,0,0,.1);
+      border-radius: 50%;
+      border-top-color: #0073aa;
+      animation: spin 1s ease-in-out infinite;
+      margin-left: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>draft</h1>
+
+    <form id="product-form">
+      <div class="form-group">
+        <label for="title">Title</label>
+        <input type="text" id="title" required />
+        <div id="title-error" class="error"></div>
+      </div>
+
+      <div class="form-group">
+        <label for="price">MRP</label>
+        <input type="number" id="price" required min="1" step="0.01" />
+        <div id="price-error" class="error"></div>
+      </div>
+
+      <div class="form-group">
+        <label for="sale">Discount Price</label>
+        <input type="number" id="sale" min="0" step="0.01" />
+        <div id="sale-error" class="error"></div>
+      </div>
+
+      <div class="form-group">
+        <label for="desc">Short Description</label>
+        <textarea id="desc" rows="3" required></textarea>
+        <div id="desc-error" class="error"></div>
+      </div>
+
+      <div class="form-group">
+        <label for="category">Category <span id="category-loading" style="display: none;" class="category-loading"></span></label>
+        <select id="category" required disabled>
+          <option value="">Loading categories...</option>
+        </select>
+        <div id="category-error" class="error"></div>
+      </div>
+
+      <div class="form-group">
+        <label for="images">Upload Images</label>
+        <input type="file" id="images" multiple accept="image/*" required />
+        <div id="images-error" class="error"></div>
+        <div class="status" id="upload-status"></div>
+        <div class="image-preview" id="preview"></div>
+      </div>
+
+      <button type="button" id="upload-btn">
+        <span id="btn-text">Upload to WooCommerce</span>
+        <span id="btn-loader" style="display:none;"><span class="loading"></span> Processing...</span>
+      </button>
+    </form>
+
+    <div class="status" id="status"></div>
+  </div>
+
+  <div id="confirmation-dialog" class="confirmation-dialog" style="display: none;">
+    <div class="confirmation-content">
+      <h3>Confirm Product Upload</h3>
+      <p>Are you sure you want to save this product as a draft?</p>
+      <div class="confirmation-buttons">
+        <button onclick="document.getElementById('confirmation-dialog').style.display = 'none'">Cancel</button>
+        <button onclick="confirmUpload()" class="btn-danger">Yes, Save as Draft</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // API Configuration
+    const ck = "ck_7800ab74c197b71464f3d2fa57e391e34901a509";
+    const cs = "cs_3c51c295765acc3a085ce0dd39a1772778cf2445";
+    const site = "https://shoeskartel.in/wp-json/wc/v3/";
+    const cloudName = 'dkquqzjcm';
+    const uploadPreset = 'Testing';
+    
+    // Global variables
+    let uploadedImages = [];
+    let categories = []; // Store loaded categories
+    
+    // Initialize the application
+    document.addEventListener('DOMContentLoaded', function() {
+      // Load categories first
+      loadCategories();
+      
+      // Set up other event listeners
+      document.getElementById('images').addEventListener('change', handleImageUpload);
+      document.getElementById('upload-btn').addEventListener('click', validateAndConfirm);
+    });
+
+    // Load categories from WooCommerce
+    async function loadCategories() {
+      const categorySelect = document.getElementById('category');
+      const loadingIndicator = document.getElementById('category-loading');
+      
+      try {
+        loadingIndicator.style.display = 'inline-block';
+        
+        const response = await fetch(`${site}products/categories?per_page=100&consumer_key=${ck}&consumer_secret=${cs}`);
+        
+        if (!response.ok) {
+          throw new Error('Failed to load categories');
+        }
+        
+        const data = await response.json();
+        categories = data;
+        
+        // Clear and populate the select
+        categorySelect.innerHTML = '';
+        categorySelect.appendChild(new Option('-- Select Category --', ''));
+        
+        // Add your specific categories
+        const categorySlugs = [
+          'belt-and-wallets', 'cod-products', 'crocs', 'duffle-bagpacks',
+          'electronics', 'formal-jackets-hoodies', 'first-copy-lifestyle'
+        ];
+        
+        categories.forEach(category => {
+          if (categorySlugs.includes(category.slug)) {
+            categorySelect.appendChild(new Option(category.name, category.id));
+          }
+        });
+      } catch (error) {
+        console.error(error);
+      } finally {
+        loadingIndicator.style.display = 'none';
+      }
+    }
+
+    // Handle image upload and preview
+    function handleImageUpload(event) {
+      const files = event.target.files;
+      const previewContainer = document.getElementById('preview');
+      previewContainer.innerHTML = ''; // Clear previous previews
+
+      for (let file of files) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          const imgElement = document.createElement('img');
+          imgElement.src = e.target.result;
+          const previewItem = document.createElement('div');
+          previewItem.classList.add('image-preview-item');
+          previewItem.innerHTML = `
+            <img src="${e.target.result}" alt="Preview" />
+            <button class="remove-image" onclick="removeImage(this)">×</button>
+          `;
+          previewContainer.appendChild(previewItem);
+          uploadedImages.push(file);
+        };
+        reader.readAsDataURL(file);
+      }
+    }
+
+    // Remove selected image preview
+    function removeImage(button) {
+      const previewContainer = document.getElementById('preview');
+      const index = Array.from(previewContainer.children).indexOf(button.parentElement);
+      uploadedImages.splice(index, 1);  // Remove from uploaded images array
+      previewContainer.removeChild(button.parentElement);
+    }
+
+    // Validate inputs before showing confirmation dialog
+    function validateAndConfirm() {
+      const title = document.getElementById('title').value.trim();
+      const price = document.getElementById('price').value.trim();
+      const desc = document.getElementById('desc').value.trim();
+      const category = document.getElementById('category').value.trim();
+      const sale = document.getElementById('sale').value.trim();
+
+      if (!title || !price || !desc || !category || uploadedImages.length === 0) {
+        alert('Please fill in all required fields and upload images.');
+        return;
+      }
+
+      // Show confirmation dialog
+      document.getElementById('confirmation-dialog').style.display = 'flex';
+    }
+
+    // Confirm upload to WooCommerce (save as draft)
+    function confirmUpload() {
+      // Here you can integrate WooCommerce API call to save the product as draft
+      alert('Product will be saved as a draft.');
+
+      document.getElementById('confirmation-dialog').style.display = 'none';
+    }
+  </script>
+</body>
+</html>
